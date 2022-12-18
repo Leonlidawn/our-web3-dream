@@ -55,16 +55,37 @@ visibility Quanitifiers for variables:
 
 
 Getter functions (those which return values) can be declared either view or pure:
-  - View: 
+  - view: 
       - Functions which do not change any state values, no gas fee if called externally
       - If called internally from another non-view function, it will still cost gas,
         as that non-view function creates a transaction on Ethereum, and will still need to be verified from every node.
-  - Pure: 
+  - pure: 
       - Functions which do not change any state values, but also don't read any state values, 
       - can only call other pure functions
       - if caller function is not free, then this pure function costs gass fee.
 
-≈
+
+modifiers
+   - can be run before and/or after a function call. 
+   - commonly used for restricting access to certain functions, validating input parameters
+   - concept is similar to middlewares or decorators but more flexible
+
+events
+  - allow contracts to perform logging on the Ethereum blockchain. 
+  - contract event logs can be parsed later to perform updates on the frontend interface.
+  - can also be used as a cheap form of storage.
+  
+constructors
+   - optional function that is executed when the contract is first deployed.
+
+
+to send or receive eth
+   - use call.value(p.amount)(p.data) to send
+   - need both receive() and fallback() to receive eth.
+
+library
+  - similar to contracts in Solidity, but cannot contain any state variables, and cannot transfer ETH.
+  - just provides a set of utility funcitons
  */
 
 contract MoodDiary {
@@ -156,5 +177,130 @@ contract ViewAndPure {
     // Promise not to modify or read from state
     function add(uint i, uint j) public pure returns (uint) {
         return i + j;
+    }
+}
+
+contract Modifiers {
+    address public owner;
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    // Create a modifier that only allows a function to be called by the owner
+    modifier onlyOwner() {
+        require(msg.sender == owner, "You are not the owner");
+        _;
+
+      /* _ is a special character used inside modifiers, it tells
+         Solidity to execute the function the modifier is used on.
+         in this case, this modifier will first perform the check then
+         run the caller function.
+        */
+    }
+
+    // Create a function and apply the onlyOwner modifier on it
+    function changeOwner(address _newOwner) public onlyOwner {
+        // We will only reach this point if the modifier succeeds with its checks
+        // So the caller of this transaction must be the current owner
+        owner = _newOwner;
+    }
+}
+
+contract Events {
+    // Declare an event which logs an address and a string
+    event TestCalled(address sender, string message);
+
+    function test() public {
+        // Log an event
+        emit TestCalled(msg.sender, "Someone called test()!");
+    }
+}
+
+
+// When inheriting from multiple contracts, if a function is defined multiple times, the right-most parent contract's function is used.
+contract D is B, C {
+    // D.foo() returns "C"
+    // since C is the right-most parent with function foo();
+    // override (B,C) means we want to override a method that exists in two parents
+    function foo() public pure override (B, C) returns (string memory) {
+        // super is a special keyword that is used to call functions
+        // in the parent contract
+        return super.foo();
+    }
+}
+
+
+
+contract SendEther {
+    function sendEth(address payable _to) public payable {
+        // Just forward the ETH received in this payable function
+        // to the given address
+        uint amountToSend = msg.value;
+        // call returns a bool value specifying success or failure
+        //_to.call{value: msg.value}("") is same as to.call.value(msg.value)("")
+        //usage is recipient.call.value(p.amount)(p.data)
+        (bool success, bytes memory data) = _to.call{value: msg.value}("");
+        require(success == true, "Failed to send ETH");
+    }
+}
+
+contract ReceiveEther {
+    /*
+when ether is sent to this address:
+   msg.data is empty
+         ? receive 
+            ? receive()
+            : fallback()
+         : fallback()
+
+ */
+    // Function to receive Ether. msg.data must be empty
+    receive() external payable {}
+
+    // Fallback function is called when msg.data is not empty
+    fallback() external payable {}
+
+    function getBalance() public view returns (uint) {
+        return address(this).balance;
+    }
+}
+
+// calling external contracts
+interface MinimalERC20 {
+    // Just include the functions we are interested in
+    // in the interface
+    function balanceOf(address account) external view returns (uint256);
+}
+
+contract MyContract {
+    MinimalERC20 externalContract;
+
+    constructor(address _externalContract) {
+        // Initialize a MinimalERC20 contract instance
+        externalContract = MinimalERC20(_externalContract);
+    }
+
+    function mustHaveSomeBalance() public {
+        // Require that the caller of this transaction has a non-zero
+        // balance of tokens in the external ERC20 contract
+        uint balance = externalContract.balanceOf(msg.sender);
+        require(balance > 0, "You don't own any tokens of external contract");
+    }
+}
+
+
+library SafeMath {
+    function add(uint x, uint y) internal pure returns (uint) {
+        uint z = x + y;
+        // If z overflowed, throw an error
+        require(z >= x, "uint overflow");
+        return z;
+    }
+}
+
+contract TestSafeMath {
+    function testAdd(uint x, uint y) public pure returns (uint) {
+        return SafeMath.add(x, y);
     }
 }
