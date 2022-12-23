@@ -5,6 +5,7 @@ import { providers, Contract } from "ethers";
 import { useEffect, useRef, useState } from "react";
 import { WHITELIST_CONTRACT_ADDRESS, abi } from "../constants";
 
+
 export default function Home() {
   // walletConnected keep track of whether the user's wallet is connected or not
   const [isWalletConnected, setIsWalletConnected] = useState<boolean>(false);
@@ -15,7 +16,7 @@ export default function Home() {
   // listedCount tracks the number of addresses's whitelisted
   const [listedCount, setListedCount] = useState<number>(0);
   // Create a reference to the Web3 Modal (used for connecting to Metamask) which persists as long as the page is open
-  const web3ModalRef = useRef();
+  const web3ModalRef = useRef<Web3Modal|null>(null);
 
   /**
    * Returns a Provider or Signer object representing the Ethereum RPC with or without the
@@ -32,6 +33,10 @@ export default function Home() {
   const getProviderOrSigner = async (needSigner = false) => {
     // Connect to Metamask
     // Since we store `web3Modal` as a reference, we need to access the `current` value to get access to the underlying object
+    if(web3ModalRef.current == null)  {
+      throw new Error("Web3Modal lib is not loaded");
+    }
+
     const provider = await web3ModalRef.current.connect();
     const web3Provider = new providers.Web3Provider(provider);
 
@@ -118,6 +123,8 @@ export default function Home() {
         signer
       );
       // Get the address associated to the signer which is connected to  MetaMask
+
+      // @ts-ignore
       const address = await signer.getAddress();
       // call the whitelistedAddresses from the contract
       const isListed = await whitelistContract.list(
